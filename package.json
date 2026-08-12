@@ -1,6 +1,6 @@
 {
   "name": "com.sqa.uniautoref",
-  "version": "0.9.25",
+  "version": "0.9.28",
   "displayName": "UniAutoRef",
   "description": "Fast automatic reference finder for Unity.",
   "unity": "2022.3",
