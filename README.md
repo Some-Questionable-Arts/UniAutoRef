@@ -1,3 +1,7 @@
+> [!WARNING]
+> Dont downoload the current version (0.9.2) it has a couple of errors. It will be fixed soon.
+
+
 ### UniAutoRef
 
 ### What is this?
