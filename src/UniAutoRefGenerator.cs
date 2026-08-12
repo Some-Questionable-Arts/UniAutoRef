@@ -73,10 +73,14 @@ namespace UniAutoRef
                                     TypedConstant firstArgument = autoFindAttribute.ConstructorArguments[0];
                                     if (firstArgument.Value?.ToString() == "Enable" || firstArgument.Value?.ToString() == "1")
                                     {
-                                        debugText = $"        if ({varName} == null) Debug.Log(\"[AutoFind] The {varName} in {className} is not found.\");";
+                                        debugText = $@"
+#if UNITY_EDITOR || DEBUG
+    if ({{varName}} == null) Debug.Log(""[AutoFind] The {{varName}} in {{className}} is not found."");
+#endif
+";
+
                                     }
                                 }
-
                                 string varType = fieldSymbol.Type.Name;
 
                                 findStringBuilder.AppendLine($"        {varName} = GetComponent<{varType}>();");
