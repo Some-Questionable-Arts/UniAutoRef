@@ -1,7 +1,3 @@
-> [!WARNING]
-> Dont downoload the current version (0.9.2) it has a couple of errors. It will be fixed soon.
-
-
 ### UniAutoRef
 
 ### What is this?
@@ -74,4 +70,4 @@ public partial class TestScript : MonoBehaviour
     }
 }
 ```
-**(Since version `0.9.2`, you don't need to manually disable debugging for each attribute in the final build — it will not be included in the release build. It will only run in the Editor and debug builds.)**
+**(Since version `0.9.25`, you don't need to manually disable debugging for each attribute in the final build — it will not be included in the release build. It will only run in the Editor and debug builds.)**
