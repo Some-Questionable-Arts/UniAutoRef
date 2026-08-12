@@ -1,0 +1,12 @@
+{
+  "name": "com.sqa.uniautoref",
+  "version": "0.9.1",
+  "displayName": "UniAutoRef",
+  "description": "Fast automatic reference finder for Unity.",
+  "unity": "2022.3",
+  "author": {
+    "name": "Some-Questionable-Arts",
+    "url": "https://github.com/Some-Questionable-Arts/UniAutoRef.git"
+  },
+  "dependencies": {}
+}
