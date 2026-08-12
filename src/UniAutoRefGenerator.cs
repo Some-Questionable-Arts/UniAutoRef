@@ -13,8 +13,12 @@ namespace UniAutoRef
     [Generator]
     public class UniAutoRefGenerator : IIncrementalGenerator
     {
-        public record FieldData(string Name, string Type, bool IsDebugEnabled);
+        // Records.
 
+        // For Field
+        public record FieldData(string Name, string Type, bool IsDebugEnabled, string FindIn);
+
+        // For Methods
         public record MethodModel(string MethodName,
             string ClassName,
             string NamespaceName,
@@ -62,22 +66,33 @@ namespace UniAutoRef
                     if (autoFindAttribute != null)
                     {
                         bool IsDebugEnabled = false;
+                        string? findIn = "";
 
                         if (!autoFindAttribute.ConstructorArguments.IsEmpty)
                         {
-                            var firstArgument = autoFindAttribute.ConstructorArguments[0];
-                            var argValue = firstArgument.Value?.ToString();
+                            // Arguments in attribute
 
-                            if (argValue == "Enable" || argValue == "1")
+                            var firstArgument = autoFindAttribute.ConstructorArguments[0];
+                            var secondArgument = autoFindAttribute.ConstructorArguments[1];
+
+                            // Debug (Enable / Disable) (enum)
+                            var firstArgValue = firstArgument.Value?.ToString();
+
+                            // FindIn (enum)
+                            var secondArgValue = secondArgument.Value?.ToString();
+
+                            if (firstArgValue == "Enable" || firstArgValue == "1")
                             {
                                 IsDebugEnabled = true;
                             }
+
+                            findIn = secondArgValue?.ToString();
                         }
 
                         string fieldName = fieldSymbol.Name;
                         string fieldType = fieldSymbol.Type.ToDisplayString();
 
-                        fieldsBuilder.Add(new FieldData(fieldName, fieldType, IsDebugEnabled));
+                        fieldsBuilder.Add(new FieldData(fieldName, fieldType, IsDebugEnabled, findIn ?? "0"));
                     }
                 }
 
@@ -108,18 +123,24 @@ namespace UniAutoRef
 
                     if (field != null)
                     {
-                        string debugText = "";
+                        string componentMethod = field.FindIn switch
+                        {
+                            "0" => $"GetComponent<{field.Type}>()",
+                            "1" => $"GetComponentInChildren<{field.Type}>()",
+                            "2" => $"GetComponentInParent<{field.Type}>()",
+                            "3" => $"FindFirstObjectByType<{field.Type}>()",
+                            _ => $"GetComponent<{field.Type}>()"
+                        };
+
+                        findStringBuilder.AppendLine($"\t{varName} = {componentMethod};");
+
+                        // Argument checks here
 
                         if (field.IsDebugEnabled)
                         {
-                            debugText = $"#if UNITY_EDITOR || DEBUG\n if ({varName} == null) Debug.Log(\"[AutoFind] The {varName} in {method.ClassName} is not found.\");\n#endif";
+                            findStringBuilder.AppendLine($"#if UNITY_EDITOR || DEBUG\n if ({varName} == null) Debug.Log(\"[AutoFind] The {varName} in {method.ClassName} is not found.\");\n#endif");
                         }
 
-                        findStringBuilder.AppendLine($"        {varName} = GetComponent<{field.Type}>();");
-                        if (!string.IsNullOrEmpty(debugText))
-                        {
-                            findStringBuilder.AppendLine(debugText);
-                        }
                     }
 
                     var code = new StringBuilder($@"
