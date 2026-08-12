@@ -15,7 +15,7 @@ public class AutoFindAttribute : Attribute
 {
     public Debug IsDebug { get; }
 
-    public AutoFindAttribute(Debug isDebug)
+    public AutoFindAttribute(Debug isDebug = Debug.Enable)
     {
         IsDebug = isDebug;
     }
