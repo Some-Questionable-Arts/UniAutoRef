@@ -6,92 +6,126 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
+using System.Threading;
 
 namespace UniAutoRef
 {
     [Generator]
     public class UniAutoRefGenerator : IIncrementalGenerator
     {
+        public record FieldData(string Name, string Type, bool IsDebugEnabled);
+
+        public record MethodModel(string MethodName,
+            string ClassName,
+            string NamespaceName,
+            System.Collections.Immutable.ImmutableArray<FieldData> FieldsToFill
+        );
+
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
-            IncrementalValuesProvider<MethodDeclarationSyntax> methodDeclarations = context.SyntaxProvider
-            .CreateSyntaxProvider(
-                predicate: (node, _) => IsTargetMethod(node),
-                transform: (ctx, _) => (MethodDeclarationSyntax)ctx.Node
+            IncrementalValuesProvider<MethodModel> methodModels = context.SyntaxProvider
+                .CreateSyntaxProvider(
+                predicate: IsTargetMethod,
+                transform: TransformMethod
+                ).Where(model => model != null)
+                .Select((model, _) => model!);
+
+            IncrementalValueProvider<ImmutableArray<MethodModel>> collectedMethods = methodModels.Collect();
+
+            context.RegisterSourceOutput(collectedMethods,
+                (spc, methods) => Execute(methods, spc));
+        }
+
+        private static bool IsTargetMethod(SyntaxNode node, CancellationToken _) =>
+        node is MethodDeclarationSyntax method &&
+            (method.Identifier.ValueText == "GeneratedAwake") &&
+             method.Modifiers.Any(SyntaxKind.PartialKeyword);
+
+        private static MethodModel? TransformMethod(GeneratorSyntaxContext ctx, CancellationToken _)
+        {
+            var methodSyntax = (MethodDeclarationSyntax)ctx.Node;
+
+            var methodSymbol = ctx.SemanticModel.GetDeclaredSymbol(methodSyntax);
+            if (methodSymbol == null) return null;
+
+            var fieldsBuilder = System.Collections.Immutable.ImmutableArray.CreateBuilder<FieldData>();
+            var classSymbol = methodSymbol.ContainingType;
+
+            foreach (var member in classSymbol.GetMembers())
+            {
+                if (member is IFieldSymbol fieldSymbol)
+                {
+                    var autoFindAttribute = fieldSymbol.GetAttributes().FirstOrDefault(attr =>
+                        attr.AttributeClass?.Name == "AutoFind" ||
+                        attr.AttributeClass?.Name == "AutoFindAttribute");
+
+                    if (autoFindAttribute != null)
+                    {
+                        bool IsDebugEnabled = false;
+
+                        if (!autoFindAttribute.ConstructorArguments.IsEmpty)
+                        {
+                            var firstArgument = autoFindAttribute.ConstructorArguments[0];
+                            var argValue = firstArgument.Value?.ToString();
+
+                            if (argValue == "Enable" || argValue == "1")
+                            {
+                                IsDebugEnabled = true;
+                            }
+                        }
+
+                        string fieldName = fieldSymbol.Name;
+                        string fieldType = fieldSymbol.Type.ToDisplayString();
+
+                        fieldsBuilder.Add(new FieldData(fieldName, fieldType, IsDebugEnabled));
+                    }
+                }
+
+            }
+
+            return new MethodModel(
+                methodSymbol.Name,
+                classSymbol.Name,
+                classSymbol.ContainingNamespace.ToDisplayString(),
+                fieldsBuilder.ToImmutable()
             );
 
-            IncrementalValueProvider<(Compilation Compilation, ImmutableArray<MethodDeclarationSyntax> Methods)> compilationAndMethods =
-               context.CompilationProvider.Combine(methodDeclarations.Collect());
-
-            context.RegisterSourceOutput(compilationAndMethods,
-                (spc, source) => Execute(source.Compilation, source.Methods, spc));
         }
 
-        private static bool IsTargetMethod(SyntaxNode node)
-        {
-            return node is MethodDeclarationSyntax method &&
-                   (method.Identifier.ValueText == "GeneratedAwake") &&
-                   method.Modifiers.Any(SyntaxKind.PartialKeyword);
-        }
-
-        private static void Execute(Compilation compilation, ImmutableArray<MethodDeclarationSyntax> methods, SourceProductionContext context)
+        private static void Execute(ImmutableArray<MethodModel> methods, SourceProductionContext context)
         {
             if (methods.IsEmpty) return;
 
             foreach (var method in methods)
             {
-                if (!(method.Parent is ClassDeclarationSyntax classDeclaration)) return;
-
-                string className = classDeclaration.Identifier.ValueText;
-
-                var fieldsToFill = classDeclaration.DescendantNodes()
-                    .OfType<FieldDeclarationSyntax>()
-                    .Where(field => field.AttributeLists
-                        .SelectMany(al => al.Attributes)
-                        .Any(attr => attr.Name.ToString() == "AutoFind" || attr.Name.ToString() == "AutoFindAttribute")
-                );
+                bool hasNamespace = !string.IsNullOrEmpty(method.NamespaceName) && method.NamespaceName != "<global namespace>";
 
                 var findStringBuilder = new StringBuilder();
-                var semanticModel = compilation.GetSemanticModel(method.SyntaxTree);
 
-                foreach (var field in fieldsToFill)
+                foreach (var field in method.FieldsToFill)
                 {
-                    foreach (var variable in field.Declaration.Variables)
+                    string varName = field.Name;
+
+                    if (field != null)
                     {
-                        string varName = variable.Identifier.ValueText;
-                        if (semanticModel.GetDeclaredSymbol(variable) is IFieldSymbol fieldSymbol)
+                        string debugText = "";
+
+                        if (field.IsDebugEnabled)
                         {
-                            var autoFindAttribute = fieldSymbol.GetAttributes().
-                                FirstOrDefault(ad => ad.AttributeClass?.Name == "AutoFind" || ad.AttributeClass?.Name == "AutoFindAttribute");
+                            debugText = $"#if UNITY_EDITOR || DEBUG\n if ({varName} == null) Debug.Log(\"[AutoFind] The {varName} in {method.ClassName} is not found.\");\n#endif";
+                        }
 
-                            if (autoFindAttribute != null)
-                            {
-                                string debugText = "";
-
-                                if (!autoFindAttribute.ConstructorArguments.IsEmpty)
-                                {
-                                    TypedConstant firstArgument = autoFindAttribute.ConstructorArguments[0];
-                                    if (firstArgument.Value?.ToString() == "Enable" || firstArgument.Value?.ToString() == "1")
-                                    {
-                                        debugText = $"#if UNITY_EDITOR || DEBUG\n if ({varName} == null) Debug.Log(\"[AutoFind] The {varName} in {className} is not found.\");\n#endif";
-                                    }
-                                }
-                                string varType = fieldSymbol.Type.Name;
-
-                                findStringBuilder.AppendLine($"        {varName} = GetComponent<{varType}>();");
-                                if (!string.IsNullOrEmpty(debugText))
-                                {
-                                    findStringBuilder.AppendLine(debugText);
-                                }
-                            }
-
+                        findStringBuilder.AppendLine($"        {varName} = GetComponent<{field.Type}>();");
+                        if (!string.IsNullOrEmpty(debugText))
+                        {
+                            findStringBuilder.AppendLine(debugText);
                         }
                     }
 
                     var code = new StringBuilder($@"
 using UnityEngine;
 
-public partial class {className}
+public partial class {method.ClassName}
 {{
     partial void GeneratedAwake()
     {{
@@ -100,7 +134,7 @@ public partial class {className}
 }}
 ");
 
-                    context.AddSource($"{className}_generatedLog.g.cs", SourceText.From(code.ToString(), Encoding.UTF8));
+                    context.AddSource($"{method.ClassName}_generatedLog.g.cs", SourceText.From(code.ToString(), Encoding.UTF8));
 
                 }
             }
