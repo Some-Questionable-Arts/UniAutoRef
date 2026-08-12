@@ -1,0 +1,25 @@
+fileFormatVersion: 2
+guid: ec2eac81737c49e4892bdee199321764
+PluginImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  iconMap: {}
+  executionOrder: {}
+  defineConstraints: []
+  isPreloaded: 0
+  isFocused: 0
+  platformData:
+    - first:
+        Any: 
+      second:
+        enabled: 0
+        settings: {}
+    - first:
+        Editor: Editor
+      second:
+        enabled: 1
+        settings:
+          DefaultPlatform: Editor
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
