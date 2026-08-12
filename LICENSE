@@ -13,9 +13,9 @@ You are granted a non-exclusive, worldwide, royalty-free license to use, integra
 
 3. FORKS, MODIFICATIONS, AND REDISTRIBUTION (NON-COMMERCIAL ONLY)
 You are permitted to create forks, modify, and redistribute the Software or its Modifications, subject to the following strict conditions:
-  a. NON-COMMERCIAL ONLY: You SHALL NOT sell, lease, sublicense, or commercially exploit the Software, its forks, or its Modifications as a standalone tool, asset, or package.
+  a. NON-COMMERCIAL ONLY: You SHALL NOT sell, lease, sublicense, or commercially exploit the Software, its forks, or its Modifications. This restriction applies whether the Software is distributed      as a standalone tool, asset, package, or integrated as a part, module, or sub-component of any larger software development tool, library, asset store package, or developer framework.
   b. ATTRIBUTION: Any redistributed version, fork, or public Modification MUST retain the original copyright notice above and include clear, visible credit to the original author/organization.
-  c. NO MISREPRESENTATION: You SHALL NOT misrepresent the origin of the Software. Claiming authorship of the original Software or failing to disclose the original author in forks and Modifications is strictly prohibited.
+  c. NO MISREPRESENTATION: You SHALL NOT misrepresent the origin of the Software. Claiming authorship of the original Software or failing to disclose the original author in forks and Modifications      is strictly prohibited.
 
 4. DISCLAIMER OF WARRANTY
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
