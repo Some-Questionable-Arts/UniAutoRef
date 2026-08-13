@@ -2,7 +2,6 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
@@ -22,7 +21,7 @@ namespace UniAutoRef
         public record MethodModel(string MethodName,
             string ClassName,
             string NamespaceName,
-            System.Collections.Immutable.ImmutableArray<FieldData> FieldsToFill
+            ImmutableArray<FieldData> FieldsToFill
         );
 
         public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -52,7 +51,7 @@ namespace UniAutoRef
             var methodSymbol = ctx.SemanticModel.GetDeclaredSymbol(methodSyntax);
             if (methodSymbol == null) return null;
 
-            var fieldsBuilder = System.Collections.Immutable.ImmutableArray.CreateBuilder<FieldData>();
+            var fieldsBuilder = ImmutableArray.CreateBuilder<FieldData>();
             var classSymbol = methodSymbol.ContainingType;
 
             foreach (var member in classSymbol.GetMembers())
@@ -115,7 +114,16 @@ namespace UniAutoRef
             {
                 bool hasNamespace = !string.IsNullOrEmpty(method.NamespaceName) && method.NamespaceName != "<global namespace>";
 
-                var findStringBuilder = new StringBuilder();
+                var code = new StringBuilder();
+
+                code.AppendLine($"using UnityEngine;\n");
+
+                if (hasNamespace)
+                {
+                    code.AppendLine($"namespace {method.NamespaceName}\n{{\n\t");
+                }
+
+                code.Append($"public partial class {method.ClassName}\n{{\n\tpartial void GeneratedAwake()\n\t{{\n\t");
 
                 foreach (var field in method.FieldsToFill)
                 {
@@ -123,6 +131,8 @@ namespace UniAutoRef
 
                     if (field != null)
                     {
+                        // Argument checks here
+
                         string componentMethod = field.FindIn switch
                         {
                             "0" => $"GetComponent<{field.Type}>()",
@@ -132,28 +142,20 @@ namespace UniAutoRef
                             _ => $"GetComponent<{field.Type}>()"
                         };
 
-                        findStringBuilder.AppendLine($"\t{varName} = {componentMethod};");
-
-                        // Argument checks here
+                        code.AppendLine($"\t{varName} = {componentMethod};");
 
                         if (field.IsDebugEnabled)
                         {
-                            findStringBuilder.AppendLine($"#if UNITY_EDITOR || DEBUG\n if ({varName} == null) Debug.Log(\"[AutoFind] The {varName} in {method.ClassName} is not found.\");\n#endif");
+                            code.AppendLine($"#if UNITY_EDITOR || DEBUG\n\tif ({varName} == null) Debug.Log($\"[AutoFind] The {varName} in {method.ClassName} (Instance: {{gameObject.name}}) is not found.\");\n#endif");
                         }
-
                     }
 
-                    var code = new StringBuilder($@"
-using UnityEngine;
+                    code.AppendLine($"\t}}\n}}");
 
-public partial class {method.ClassName}
-{{
-    partial void GeneratedAwake()
-    {{
-{findStringBuilder}
-    }}
-}}
-");
+                    if (hasNamespace)
+                    {
+                        code.AppendLine($"}}");
+                    }
 
                     context.AddSource($"{method.ClassName}_generatedLog.g.cs", SourceText.From(code.ToString(), Encoding.UTF8));
 
