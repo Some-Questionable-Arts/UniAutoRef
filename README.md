@@ -46,28 +46,16 @@ public partial class TestScript : MonoBehaviour
 
 **That's it, the setup is complete! Now you can start using the [AutoFind] attribute! Here are more details about this attribute:**
 
-**It takes exactly 1 argument, which is the UniAutoRef.Debug (`enum`, default - `UniAutoRef.Debug.Enable`). You can choose between 2 options:** 
+**It takes 2 arguments: Debug (enum. Default = Debug.Enabled), FindIn (enum. Default = FindIn.Self).** 
 
-**`UniAutoRef.Debug.Enable` and `UniAutoRef.Debug.Disable`**
+### **1st Argument:**
+**`Debug.Disable` - Disables debug mode (if the component is not found, nothing will be printed to the console). `Debug.Enable` - Enables debug mode (if the component is not found, you will see the following in the console: "`[AutoFind]: The {variable name} in {class name} (Instance: {Name in hierarchy}) is not found.`").**
 
-**With the Disable option... nothing extra will happen. It will just automatically search for components silently (which is not recommended during development).**
+**It is recommended to leave this as default (Debug.Enable). It will be stripped from the final build of the game via preprocessor directives (#if).**
 
-**With the Enable option, if `[AutoFind]` fails to find a component, it will print a warning to the console (`Debug.Log`) showing exactly which script missed the component and which specific variable it was supposed to be assigned to.**
+### **2nd Argument:**
+**`FindIn.Self` (will call `GetComponent<...>();`), `FindIn.Children` (will call `GetComponentInChildren<...>();`), `FindIn.Parent` (will call `GetComponentInParent<...>();`), `FindIn.Scene` (will call `FindFirstObjectByType<Type>();`).**
 
-```csharp
-using UnityEngine;
-
-public partial class TestScript : MonoBehaviour
-{
-    partial void GeneratedAwake();
-
-    [AutoFind(UniAutoRef.Debug.Enable)] private Rigidbody _rb;
-
-    private void Awake()
-    {
-        GeneratedAwake();
-        // if _rb is null (not found) - in console you will see: "[AutoFind] The _rb in TestScript is not found."
-    }
-}
-```
-**(Since version `0.9.25`, you don't need to manually disable debugging for each attribute in the final build — it will not be included in the release build. It will only run in the Editor and debug builds.)**
+**Here you choose where to search.** 
+> [!IMPORTANT]
+> **These arguments require the `UniAutoRef` namespace.**
