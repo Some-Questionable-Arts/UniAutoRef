@@ -29,7 +29,6 @@ public class AutoRefEditor : EditorWindow
 
         Button findAllRefsButton = new() { text = "<b><color=#6CFFBD>Find All References</color></b>" };
         Button findAllRefsInAllScenesButton = new() { text = "<b><color=#6CFFBD>Find All References In All Scenes</color></b>" };
-        Button smallButton = new() { text = "<b><color=#6E8A86>Show Debug</color></b>" };
 
         findAllRefsButton.style.height = 35;
         findAllRefsButton.style.marginTop = 10;
@@ -43,12 +42,6 @@ public class AutoRefEditor : EditorWindow
         findAllRefsInAllScenesButton.style.marginRight = 10;
         findAllRefsInAllScenesButton.style.fontSize = 15;
 
-        smallButton.style.position = Position.Absolute;
-        smallButton.style.bottom = 10;
-        smallButton.style.left = 10;
-        smallButton.style.width = 100;
-        smallButton.style.height = 30;
-
         findAllRefsButton.clicked += () =>
         {
             FindAllRefsClick();
@@ -61,7 +54,6 @@ public class AutoRefEditor : EditorWindow
 
         root.Add(findAllRefsButton);
         root.Add(findAllRefsInAllScenesButton);
-        root.Add(smallButton);
     }
 
     [MenuItem("Tools/UAR/Actions (HotKeys)/FindAllRefs &#g")]
