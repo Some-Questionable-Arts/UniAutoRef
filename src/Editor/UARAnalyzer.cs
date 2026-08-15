@@ -10,6 +10,7 @@ namespace UniAutoRef.Editor
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public class UARAnalyzer : DiagnosticAnalyzer
     {
+        // Use Unshipped and Shipped files.
         public const string PartialDiagnosticId = "UAR010";
 
         private static readonly DiagnosticDescriptor PartialModifierRule = new(
