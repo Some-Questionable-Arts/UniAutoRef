@@ -11,8 +11,6 @@ namespace UniAutoRef.Editor
     public class UARAnalyzer : DiagnosticAnalyzer
     {
         public const string PartialDiagnosticId = "UAR010";
-        public const string GeneratedAwakeDiagnosticId = "UAR011";
-        public const string GAwakeNotCalledDiagnosticId = "UAR012";
 
         private static readonly DiagnosticDescriptor PartialModifierRule = new(
             id: PartialDiagnosticId,
@@ -23,26 +21,8 @@ namespace UniAutoRef.Editor
             isEnabledByDefault: true
         );
 
-        private static readonly DiagnosticDescriptor GeneratedAwakeModifierRule = new(
-            id: GeneratedAwakeDiagnosticId,
-            title: "Class must have method \"GeneratedAwake\"",
-            messageFormat: "Class '{0}' need to have \"GeneratedAwake\" method for using \"[AutoFind]\"",
-            category: "Usage",
-            defaultSeverity: DiagnosticSeverity.Error,
-            isEnabledByDefault: true
-        );
-
-        private static readonly DiagnosticDescriptor GAwakeNotCalledModifierRule = new(
-            id: GAwakeNotCalledDiagnosticId,
-            title: "Method \"GeneratedAwake\" need to be called (in \"Awake\")",
-            messageFormat: "Class `{0}` need to call method \"GeneratedAwake\" (in \"Awake\")",
-            category: "Usage",
-            defaultSeverity: DiagnosticSeverity.Error,
-            isEnabledByDefault: true
-        );
-
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-            ImmutableArray.Create(PartialModifierRule, GeneratedAwakeModifierRule, GAwakeNotCalledModifierRule);
+            ImmutableArray.Create(PartialModifierRule);
 
         public override void Initialize(AnalysisContext context)
         {
@@ -62,10 +42,10 @@ namespace UniAutoRef.Editor
                     .SelectMany(attrList => attrList.Attributes)
                     .Any(attr => {
                         var name = attr.Name.ToString();
-                        return name == "AutoFind" ||
-                            name == "AutoFindAttribute" ||
-                            name.EndsWith(".AutoFind") ||
-                            name.EndsWith(".AutoFindAttribute");
+                        return name == "AutoRef" ||
+                            name == "AutoRefAttribute" ||
+                            name.EndsWith(".AutoRef") ||
+                            name.EndsWith(".AutoRefAttribute");
             }));
 
             if (!hasFieldsWithAutoFind) return;
@@ -81,47 +61,6 @@ namespace UniAutoRef.Editor
                 );
 
                 context.ReportDiagnostic(partialDiagnostic);
-            }
-
-            bool hasGeneratedAwake = classDeclaration.Members
-                .OfType<MethodDeclarationSyntax>()
-                .Any(m => m.Identifier.Text == "GeneratedAwake");
-
-            if (!hasGeneratedAwake)
-            {
-                var generatedAwakeDiagnostic = Diagnostic.Create(
-                    GeneratedAwakeModifierRule,
-                    classDeclaration.Identifier.GetLocation(),
-                    classDeclaration.Identifier.Text
-                );
-                context.ReportDiagnostic(generatedAwakeDiagnostic);
-            }
-
-            var methodInvocations = classDeclaration.DescendantNodes()
-                .OfType<InvocationExpressionSyntax>();
-
-            bool isMethodCalled = methodInvocations.Any(invocation =>
-            {
-                if (invocation.Expression is IdentifierNameSyntax identifierName)
-                {
-                    return identifierName.Identifier.Text == "GeneratedAwake";
-                }
-                else if (invocation.Expression is MemberAccessExpressionSyntax memberAccess)
-                {
-                    return memberAccess.Name.Identifier.Text == "GeneratedAwake";
-                }
-
-                return false;
-            });
-
-            if (!isMethodCalled)
-            {
-                var gAwakeNotCalledDiagnostic = Diagnostic.Create(
-                    GAwakeNotCalledModifierRule,
-                    classDeclaration.Identifier.GetLocation(),
-                    classDeclaration.Identifier.Text
-                );
-                context.ReportDiagnostic(gAwakeNotCalledDiagnostic);
             }
 
         }
