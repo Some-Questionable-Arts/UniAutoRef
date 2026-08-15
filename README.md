@@ -26,36 +26,25 @@ When writing scripts in Unity, you frequently need to get and store references t
 
 # **Step 1 - Set up**
 
-**To get started, make sure the class where you intend to use this package is marked as `partial`. You also need to declare a `partial` function named `GeneratedAwake` (keep in mind: the package is strictly case-sensitive, so it must be spelled exactly like this) and call it at the very beginning of your `Awake method`. It should look something like this:**
+**To get started, make your class partial where you intend to use the `[AutoRef]` attribute. It should look something like this:**
 
 ```csharp
 using UnityEngine;
 
 public partial class TestScript : MonoBehaviour
 {
-    partial void GeneratedAwake();
-
-    private void Awake()
-    {
-        GeneratedAwake();
-    }
+    [AutoRef] public BoxCollider _bx;
 }
 ```
 
-# **Step 2 - Use it!**
+**The attribute takes 1 argument: UniAutoRef.FindIn (enum, default = scene). This allows you to choose WHERE to search. The options are: 
+FindIn.Scene, FindIn.Children, FindIn.Parent, FindIn.Self**
 
-**That's it, the setup is complete! Now you can start using the [AutoFind] attribute! Here are more details about this attribute:**
-
-**It takes 2 arguments: Debug (enum. Default = Debug.Enabled), FindIn (enum. Default = FindIn.Self).** 
-
-### **1st Argument:**
-**`Debug.Disable` - Disables debug mode (if the component is not found, nothing will be printed to the console). `Debug.Enable` - Enables debug mode (if the component is not found, you will see the following in the console: "`[AutoFind]: The {variable name} in {class name} (Instance: {Name in hierarchy}) is not found.`").**
-
-**It is recommended to leave this as default (Debug.Enable). It will be stripped from the final build of the game via preprocessor directives (#if).**
-
-### **2nd Argument:**
-**`FindIn.Self` (will call `GetComponent<...>();`), `FindIn.Children` (will call `GetComponentInChildren<...>();`), `FindIn.Parent` (will call `GetComponentInParent<...>();`), `FindIn.Scene` (will call `FindFirstObjectByType<Type>();`).**
-
-**Here you choose where to search.** 
 > [!IMPORTANT]
-> **These arguments require the `UniAutoRef` namespace.**
+> **This is required for the field to be serialized and displayed in the Inspector.**
+
+# **Step 2 - Use**
+
+**Now, let's say you saved the script and attached it to an object in the scene. To save all references, click: Tools -> UAR -> Find All References. If something is missing, you will see a console message showing what was not found and where.** 
+
+**Thats it. Nothing more. Just use it.**
