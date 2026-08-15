@@ -2,23 +2,36 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading;
 
-namespace UniAutoRef
+namespace UniAutoRef.Editor
 {
     [Generator]
     public class UniAutoRefGenerator : IIncrementalGenerator
     {
-        // Records.
+        // const strint (TKey)
+
+        private const string FINDIN_KEY = "2";
+
+        // Records
 
         // For Field
-        public record FieldData(string Name, string Type, bool IsDebugEnabled, string FindIn);
+        /// <summary>
+        /// Field Data for field (marked by attribute)
+        /// </summary>
+        /// <param name="Name">Name of field</param>
+        /// <param name="Type">Type of field</param>
+        /// <param name="Arguments">Arguments attribute constructor</param>
+        /// <param name="ArchitectureType">True - new Architecture [AutoRef],
+        /// False - old Architecture [AutoFind]</param>
+        public record FieldData(string Name, string Type, Dictionary<string, string?> Arguments, ArchitectureType ArchitectureType);
 
         // For Methods
-        public record MethodModel(string MethodName,
+        public record MethodModel(
             string ClassName,
             string NamespaceName,
             ImmutableArray<FieldData> FieldsToFill
@@ -28,8 +41,8 @@ namespace UniAutoRef
         {
             IncrementalValuesProvider<MethodModel> methodModels = context.SyntaxProvider
                 .CreateSyntaxProvider(
-                predicate: IsTargetMethod,
-                transform: TransformMethod
+                predicate: IsTargetClass,
+                transform: TransformClass
                 ).Where(model => model != null)
                 .Select((model, _) => model!);
 
@@ -39,66 +52,53 @@ namespace UniAutoRef
                 (spc, methods) => Execute(methods, spc));
         }
 
-        private static bool IsTargetMethod(SyntaxNode node, CancellationToken _) =>
-        node is MethodDeclarationSyntax method &&
-            (method.Identifier.ValueText == "GeneratedAwake") &&
-             method.Modifiers.Any(SyntaxKind.PartialKeyword);
+        private static bool IsTargetClass(SyntaxNode node, CancellationToken _) =>
+             node is ClassDeclarationSyntax classSyntax &&
+             classSyntax.Modifiers.Any(SyntaxKind.PartialKeyword);
 
-        private static MethodModel? TransformMethod(GeneratorSyntaxContext ctx, CancellationToken _)
+        private static MethodModel? TransformClass(GeneratorSyntaxContext ctx, CancellationToken _)
         {
-            var methodSyntax = (MethodDeclarationSyntax)ctx.Node;
+            var classSyntax = (ClassDeclarationSyntax)ctx.Node;
 
-            var methodSymbol = ctx.SemanticModel.GetDeclaredSymbol(methodSyntax);
-            if (methodSymbol == null) return null;
+            var classSymbol = ctx.SemanticModel.GetDeclaredSymbol(classSyntax);
+            if (classSymbol == null) return null;
 
             var fieldsBuilder = ImmutableArray.CreateBuilder<FieldData>();
-            var classSymbol = methodSymbol.ContainingType;
 
             foreach (var member in classSymbol.GetMembers())
             {
                 if (member is IFieldSymbol fieldSymbol)
                 {
-                    var autoFindAttribute = fieldSymbol.GetAttributes().FirstOrDefault(attr =>
-                        attr.AttributeClass?.Name == "AutoFind" ||
-                        attr.AttributeClass?.Name == "AutoFindAttribute");
+                    string fieldName = fieldSymbol.Name;
+                    string fieldType = fieldSymbol.Type.ToDisplayString();
 
-                    if (autoFindAttribute != null)
+                    // New attribute (Thats all for new Attributes (if i add))
+                    var autoRefAttribute = fieldSymbol.GetAttributes().FirstOrDefault(attr =>
+                        attr.AttributeClass?.Name == "AutoRef" ||
+                        attr.AttributeClass?.Name == "AutoRefAttribute");
+
+                    if (autoRefAttribute != null)
                     {
-                        bool IsDebugEnabled = false;
                         string? findIn = "";
 
-                        if (!autoFindAttribute.ConstructorArguments.IsEmpty)
+                        if (!autoRefAttribute.ConstructorArguments.IsEmpty)
                         {
-                            // Arguments in attribute
+                            var firstArgument = autoRefAttribute.ConstructorArguments[0];
 
-                            var firstArgument = autoFindAttribute.ConstructorArguments[0];
-                            var secondArgument = autoFindAttribute.ConstructorArguments[1];
-
-                            // Debug (Enable / Disable) (enum)
                             var firstArgValue = firstArgument.Value?.ToString();
 
-                            // FindIn (enum)
-                            var secondArgValue = secondArgument.Value?.ToString();
-
-                            if (firstArgValue == "Enable" || firstArgValue == "1")
-                            {
-                                IsDebugEnabled = true;
-                            }
-
-                            findIn = secondArgValue?.ToString();
+                            findIn = firstArgValue?.ToString();
                         }
 
-                        string fieldName = fieldSymbol.Name;
-                        string fieldType = fieldSymbol.Type.ToDisplayString();
-
-                        fieldsBuilder.Add(new FieldData(fieldName, fieldType, IsDebugEnabled, findIn ?? "0"));
+                        fieldsBuilder.Add(new FieldData(fieldName, fieldType, new Dictionary<string, string?>
+                        {
+                            { FINDIN_KEY, findIn }
+                        }, ArchitectureType.AutoRef));
                     }
                 }
 
             }
-
             return new MethodModel(
-                methodSymbol.Name,
                 classSymbol.Name,
                 classSymbol.ContainingNamespace.ToDisplayString(),
                 fieldsBuilder.ToImmutable()
@@ -110,57 +110,100 @@ namespace UniAutoRef
         {
             if (methods.IsEmpty) return;
 
+            var autoRefArchitectureMethods = ImmutableArray.CreateBuilder<MethodModel>();
+
             foreach (var method in methods)
             {
-                bool hasNamespace = !string.IsNullOrEmpty(method.NamespaceName) && method.NamespaceName != "<global namespace>";
+                var autoRefFields = method.FieldsToFill
+                    .Where(method => method.ArchitectureType == ArchitectureType.AutoRef)
+                    .ToImmutableArray();
 
-                var code = new StringBuilder();
-
-                code.AppendLine($"using UnityEngine;\n");
-
-                if (hasNamespace)
+                if (!autoRefFields.IsEmpty)
                 {
-                    code.AppendLine($"namespace {method.NamespaceName}\n{{\n\t");
+                    autoRefArchitectureMethods.Add(method with { FieldsToFill = autoRefFields });
                 }
+            }
 
-                code.Append($"public partial class {method.ClassName}\n{{\n\tpartial void GeneratedAwake()\n\t{{\n\t");
+            ExecuteAutoRef(autoRefArchitectureMethods.ToImmutable(), context);
 
-                foreach (var field in method.FieldsToFill)
+        }
+
+        // "Execute" for [AutoRef] attribute
+        private static void ExecuteAutoRef(ImmutableArray<MethodModel> methods, SourceProductionContext context)
+        {
+            // Making generated class "UARAutoRefRegistry"
+
+            var registryCode = new StringBuilder();
+
+            registryCode.AppendLine("#if UNITY_EDITOR");
+            registryCode.AppendLine("public static partial class AutoRefRegistry");
+            registryCode.AppendLine("{");
+            registryCode.AppendLine("\tpublic static readonly System.Type[] TargetTypes =");
+            registryCode.AppendLine("\t{");
+
+            if (!methods.IsEmpty)
+            {
+                foreach (var method in methods)
                 {
-                    string varName = field.Name;
+                    bool hasNamespace = !string.IsNullOrEmpty(method.NamespaceName) && method.NamespaceName != "<global namespace>";
 
-                    if (field != null)
+                    var code = new StringBuilder();
+
+                    code.AppendLine("// <auto-generated/>\nusing UnityEngine;");
+
+                    if (hasNamespace)
                     {
-                        // Argument checks here
+                        code.AppendLine($"namespace {method.NamespaceName}\n{{\n\t");
+                    }
 
-                        string componentMethod = field.FindIn switch
+                    code.AppendLine($"public partial class {method.ClassName} : UniAutoRef.IAutoReference");
+                    code.AppendLine("{");
+                    code.AppendLine("#if UNITY_EDITOR");
+                    code.AppendLine("\tpublic void AutoFind_Execute()");
+                    code.AppendLine("\t{");
+
+                    foreach (var field in method.FieldsToFill)
+                    {
+                        if (field != null)
                         {
-                            "0" => $"GetComponent<{field.Type}>()",
-                            "1" => $"GetComponentInChildren<{field.Type}>()",
-                            "2" => $"GetComponentInParent<{field.Type}>()",
-                            "3" => $"FindFirstObjectByType<{field.Type}>()",
-                            _ => $"GetComponent<{field.Type}>()"
-                        };
+                            // Argument checks here
 
-                        code.AppendLine($"\t{varName} = {componentMethod};");
+                            field.Arguments.TryGetValue(FINDIN_KEY, out var findIn);
 
-                        if (field.IsDebugEnabled)
-                        {
-                            code.AppendLine($"#if UNITY_EDITOR || DEBUG\n\tif ({varName} == null) Debug.Log($\"[AutoFind] The {varName} in {method.ClassName} (Instance: {{gameObject.name}}) is not found.\");\n#endif");
+                            string componentMethod = findIn switch
+                            {
+                                "0" => $"GetComponent<{field.Type}>()",
+                                "1" => $"GetComponentInChildren<{field.Type}>()",
+                                "2" => $"GetComponentInParent<{field.Type}>()",
+                                "3" => $"FindFirstObjectByType<{field.Type}>()",
+                                _ => $"GetComponent<{field.Type}>()"
+                            };
+
+                            code.AppendLine($"\t\t{field.Name} = {componentMethod};");
+                            code.AppendLine($"\t\tif ({field.Name} == null) Debug.Log($\"<b><color=#EEF18E>[AutoRef] Cannot find reference to {field.Name} in {method.ClassName} (Instance in hierarchy: {{gameObject.name}})</color></b>\");");
+
+                            registryCode.AppendLine($"\t\ttypeof({method.NamespaceName}.{method.ClassName}),");
                         }
                     }
 
-                    code.AppendLine($"\t}}\n}}");
+                    code.AppendLine("\t}");
+                    code.AppendLine("}");
+                    code.AppendLine("#endif");
 
                     if (hasNamespace)
                     {
                         code.AppendLine($"}}");
                     }
 
-                    context.AddSource($"{method.ClassName}_generatedLog.g.cs", SourceText.From(code.ToString(), Encoding.UTF8));
-
+                    context.AddSource($"{method.ClassName}_Generated.g.cs", SourceText.From(code.ToString(), Encoding.UTF8));
                 }
             }
+
+            registryCode.AppendLine("\t};");
+            registryCode.AppendLine("}");
+            registryCode.AppendLine("#endif");
+
+            context.AddSource("AutoFindRegistry.g.cs", SourceText.From(registryCode.ToString(), Encoding.UTF8));
         }
     }
 }
